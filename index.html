@@ -265,8 +265,11 @@ tr.total-row td { border-top: 2px solid var(--border); }
     <button class="btn btn-secondary" style="margin-bottom:12px;" onclick="pickWork('A')">
       A 工作 <span style="display:block;font-size:13px;color:var(--text2);font-weight:400;margin-top:4px;">时薪 HK$75</span>
     </button>
-    <button class="btn btn-secondary" onclick="pickWork('B')">
+    <button class="btn btn-secondary" style="margin-bottom:12px;" onclick="pickWork('B')">
       B 工作 <span style="display:block;font-size:13px;color:var(--text2);font-weight:400;margin-top:4px;">固定 HK$750</span>
+    </button>
+    <button class="btn btn-secondary" onclick="pickWork('C')">
+      吉野家 <span style="display:block;font-size:13px;color:var(--text2);font-weight:400;margin-top:4px;">时薪 HK$75 · 按分钟计算</span>
     </button>
   </div>
 </div>
@@ -311,6 +314,32 @@ tr.total-row td { border-top: 2px solid var(--border); }
     <div style="font-size:13px;color:var(--text2);">今天 <span id="b-date"></span></div>
   </div>
   <button class="btn btn-primary" onclick="confirmB()">确认记录</button>
+</div>
+
+<!-- ===== 下班：C 吉野家算钱 ===== -->
+<div class="view" id="view-calcC">
+  <div class="navbar">
+    <button class="back" onclick="go('home')">取消</button>
+    <span class="title">吉野家打卡</span>
+    <span class="spacer"></span>
+  </div>
+  <div class="form-group">
+    <label>上班时间</label>
+    <input type="time" id="c-start" value="10:00">
+  </div>
+  <div class="form-group">
+    <label>下班时间</label>
+    <input type="time" id="c-end" value="23:00">
+  </div>
+  <div class="card" style="margin-bottom:12px;">
+    <div class="card-label">本次工作时长</div>
+    <div class="card-value" id="c-hours">0 小时 0 分钟</div>
+  </div>
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-label">本次收入（未扣MPF）</div>
+    <div class="card-value" style="color:var(--accent);" id="c-amount">HK$ 0</div>
+  </div>
+  <button class="btn btn-primary" onclick="confirmC()">确认记录</button>
 </div>
 
 <!-- ===== 本月统计 ===== -->
@@ -475,7 +504,7 @@ function go(view, params) {
 function getMonthSummary(year, month) {
   const key = `${year}-${String(month).padStart(2,'0')}`;
   const result = {};
-  ['A','B','other'].forEach(work => {
+  ['A','B','C','other'].forEach(work => {
     const recs = DB.records.filter(r => r.date.startsWith(key) && r.work === work);
     const gross = recs.reduce((s,r)=>s+r.grossAmount, 0);
     const net = gross > DB.settings.mpfThreshold ? gross * DB.settings.mpfRate : gross;
@@ -493,7 +522,7 @@ function renderHome() {
   const total = s.A.net + s.B.net + s.other.net;
   document.getElementById('home-total').textContent = fmt(total).toLocaleString('en-US', {minimumFractionDigits:2});
   document.getElementById('home-breakdown').innerHTML =
-    `<span>A <b>${hkd(s.A.net)}</b></span><span>B <b>${hkd(s.B.net)}</b></span><span>其他 <b>${hkd(s.other.net)}</b></span>`;
+    `<span>A <b>${hkd(s.A.net)}</b></span><span>B <b>${hkd(s.B.net)}</b></span><span>吉野家 <b>${hkd(s.C.net)}</b></span><span>其他 <b>${hkd(s.other.net)}</b></span>`;
 }
 
 // ============ 下班流程 ============
@@ -547,6 +576,9 @@ function pickWork(work) {
   } else if (work === 'B') {
     document.getElementById('b-date').textContent = todayStr();
     go('confirmB');
+  } else if (work === 'C') {
+    go('calcC');
+    initCalcC();
   }
 }
 
@@ -624,26 +656,76 @@ function confirmB() {
   go('home');
 }
 
+// ---- C 吉野家：按分钟精确计算 ----
+function initCalcC() {
+  document.getElementById('c-start').value = '10:00';
+  document.getElementById('c-end').value = '23:00';
+  document.getElementById('c-start').oninput = updateCalcC;
+  document.getElementById('c-end').oninput = updateCalcC;
+  updateCalcC();
+}
+
+function calcCMinutes(startStr, endStr) {
+  const [sh, sm] = startStr.split(':').map(Number);
+  const [eh, em] = endStr.split(':').map(Number);
+  let startMin = sh*60+sm, endMin = eh*60+em;
+  if (endMin <= startMin) endMin += 24*60; // 跨天
+  return Math.max(0, endMin - startMin);
+}
+
+function updateCalcC() {
+  const start = document.getElementById('c-start').value;
+  const end = document.getElementById('c-end').value;
+  const totalMin = calcCMinutes(start, end);
+  const hours = totalMin / 60;
+  const h = Math.floor(totalMin/60), m = totalMin%60;
+  document.getElementById('c-hours').textContent = h + ' 小时 ' + m + ' 分钟';
+  const amount = hours * DB.settings.hourlyRateA; // 时薪同样75
+  document.getElementById('c-amount').textContent = hkd(amount);
+}
+
+function confirmC() {
+  const start = document.getElementById('c-start').value;
+  const end = document.getElementById('c-end').value;
+  const totalMin = calcCMinutes(start, end);
+  const hours = totalMin / 60;
+  const gross = hours * DB.settings.hourlyRateA;
+  DB.records.push({
+    id: Date.now().toString(36),
+    date: todayStr(),
+    work: 'C',
+    startTime: start,
+    offTime: end,
+    hours: hours,
+    grossAmount: gross,
+    note: '吉野家'
+  });
+  saveData(DB);
+  showToast('已记录吉野家 ' + hkd(gross));
+  go('home');
+}
+
 // ============ 本月统计 ============
 function renderMonthly() {
   const now = new Date();
   document.getElementById('monthly-title').textContent = `${now.getMonth()+1}月统计`;
   const s = getMonthSummary(now.getFullYear(), now.getMonth()+1);
-  const totalGross = s.A.gross + s.B.gross + s.other.gross;
-  const totalNet = s.A.net + s.B.net + s.other.net;
+  const totalGross = s.A.gross + s.B.gross + s.C.gross + s.other.gross;
+  const totalNet = s.A.net + s.B.net + s.C.net + s.other.net;
   const rows = [
     ['A', s.A],
     ['B', s.B],
+    ['吉野家', s.C],
     ['其他', s.other]
   ];
   let html = '';
   rows.forEach(([name, d]) => {
-    const hours = name === 'A' ? fmt(d.hours) + ' h' : '—';
+    const hours = name === 'A' || name === '吉野家' ? fmt(d.hours) + ' h' : '—';
     const mpfNote = d.gross > DB.settings.mpfThreshold
       ? ` <span class="badge warn">MPF 5%</span>` : '';
     html += `<tr><td>${name}${mpfNote}</td><td>${d.days}</td><td>${hours}</td><td>${hkd(d.net)}</td></tr>`;
   });
-  html += `<tr class="total-row"><td>总计</td><td>${s.A.days+s.B.days+s.other.days}</td><td>${fmt(s.A.hours)} h</td><td>${hkd(totalNet)}</td></tr>`;
+  html += `<tr class="total-row"><td>总计</td><td>${s.A.days+s.B.days+s.C.days+s.other.days}</td><td>${fmt(s.A.hours+s.C.hours)} h</td><td>${hkd(totalNet)}</td></tr>`;
   document.getElementById('monthly-body').innerHTML = html;
 
   // 明细
@@ -652,8 +734,8 @@ function renderMonthly() {
   let detailHtml = '<div style="font-size:14px;font-weight:600;margin-bottom:8px;">今日/本月明细</div>';
   if (recs.length === 0) detailHtml += '<div style="color:var(--text2);font-size:14px;">暂无记录</div>';
   recs.forEach(r => {
-    const label = r.work === 'A' ? 'A 工作' : r.work === 'B' ? 'B 工作' : '其他';
-    const meta = r.work === 'A' ? `${r.startTime}–${r.offTime} · ${fmt(r.hours)}h` : (r.note||'');
+    const label = r.work === 'A' ? 'A 工作' : r.work === 'B' ? 'B 工作' : r.work === 'C' ? '吉野家' : '其他';
+    const meta = (r.work === 'A' || r.work === 'C') ? `${r.startTime}–${r.offTime} · ${fmt(r.hours)}h` : (r.note||'');
     detailHtml += `<div class="record-item">
       <div class="info"><div class="name">${label}</div><div class="meta">${r.date} ${meta}</div></div>
       <div class="amount">${hkd(r.grossAmount)}</div>
@@ -671,7 +753,7 @@ function renderHistory() {
     const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
     const s = getMonthSummary(d.getFullYear(), d.getMonth()+1);
     const total = s.A.net + s.B.net + s.other.net;
-    list.push({ year: d.getFullYear(), month: d.getMonth()+1, total, recs: s.A.records.length+s.B.records.length+s.other.records.length });
+    list.push({ year: d.getFullYear(), month: d.getMonth()+1, total, recs: s.A.records.length+s.B.records.length+s.C.records.length+s.other.records.length });
   }
   // 只显示有记录的月份
   const hasData = list.filter(m => m.recs > 0);
@@ -703,6 +785,7 @@ function showHistoryDetail(year, month) {
       <tbody>
         <tr><td>A</td><td>${s.A.days}</td><td>${hkd(s.A.net)}</td></tr>
         <tr><td>B</td><td>${s.B.days}</td><td>${hkd(s.B.net)}</td></tr>
+        <tr><td>吉野家</td><td>${s.C.days}</td><td>${hkd(s.C.net)}</td></tr>
         <tr><td>其他</td><td>${s.other.days}</td><td>${hkd(s.other.net)}</td></tr>
       </tbody>
     </table>
@@ -710,8 +793,8 @@ function showHistoryDetail(year, month) {
   `;
   if (recs.length === 0) html += '<div style="color:var(--text2);">无记录</div>';
   recs.forEach(r => {
-    const label = r.work === 'A' ? 'A' : r.work === 'B' ? 'B' : '其他';
-    const meta = r.work === 'A' ? `${r.startTime}–${r.offTime} · ${fmt(r.hours)}h` : (r.note||'');
+    const label = r.work === 'A' ? 'A' : r.work === 'B' ? 'B' : r.work === 'C' ? '吉野家' : '其他';
+    const meta = (r.work === 'A' || r.work === 'C') ? `${r.startTime}–${r.offTime} · ${fmt(r.hours)}h` : (r.note||'');
     html += `<div class="record-item">
       <div class="info"><div class="name">${label} <span style="color:var(--text2);font-size:12px;">${r.date}</span></div><div class="meta">${meta}</div></div>
       <div class="amount">${hkd(r.grossAmount)}</div>
