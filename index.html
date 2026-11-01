@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>收入记账</title>
+<!-- iOS PWA 配置 -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="收入">
+<meta name="theme-color" content="#0E0E10">
+<link rel="apple-touch-icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180"><rect width="180" height="180" rx="40" fill="%230E0E10"/><text x="90" y="120" font-size="80" text-anchor="middle" fill="%2334D399" font-family="sans-serif" font-weight="bold">$</text></svg>'>
+<link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180"><rect width="180" height="180" rx="40" fill="%230E0E10"/><text x="90" y="120" font-size="80" text-anchor="middle" fill="%2334D399" font-family="sans-serif" font-weight="bold">$</text></svg>'>
+<style>
+:root {
+  --bg: #0E0E10;
+  --card: #1A1A1E;
+  --card2: #242428;
+  --border: #2E2E33;
+  --text: #F5F5F7;
+  --text2: #9B9BA3;
+  --accent: #34D399;
+  --accent-dim: rgba(52,211,153,0.15);
+  --warn: #F59E0B;
+  --danger: #EF4444;
+  --radius: 16px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
+  font-size: 16px;
+  line-height: 1.4;
+  min-height: 100vh;
+  overscroll-behavior-y: none;
+}
+body {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: env(safe-area-inset-top) 16px env(safe-area-inset-bottom);
+}
+.view { display: none; padding: 20px 0 40px; min-height: 100vh; }
+.view.active { display: block; }
+
+/* 顶部导航 */
+.navbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 0 20px;
+}
+.navbar .back {
+  background: none; border: none; color: var(--accent);
+  font-size: 17px; cursor: pointer; padding: 8px 0;
+  font-family: inherit;
+}
+.navbar .title { font-size: 17px; font-weight: 600; }
+.navbar .spacer { width: 48px; }
+
+/* 主界面 */
+.month-label {
+  font-size: 14px; color: var(--text2);
+  text-transform: uppercase; letter-spacing: 1px;
+  margin-bottom: 8px;
+}
+.big-amount {
+  font-size: 48px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -1px;
+  margin-bottom: 4px;
+}
+.big-amount .currency { font-size: 20px; color: var(--text2); font-weight: 500; margin-right: 4px; }
+.big-amount .amount { color: var(--accent); }
+.sub-row {
+  display: flex; gap: 16px; margin-bottom: 28px;
+  font-size: 13px; color: var(--text2);
+}
+.sub-row b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* 按钮 */
+.btn {
+  display: block; width: 100%;
+  border: none; border-radius: var(--radius);
+  padding: 20px; font-size: 18px; font-weight: 600;
+  cursor: pointer; font-family: inherit;
+  transition: opacity 0.15s;
+}
+.btn:active { opacity: 0.7; }
+.btn-primary {
+  background: var(--accent); color: #0E0E10;
+  font-size: 22px; padding: 28px;
+}
+.btn-secondary {
+  background: var(--card); color: var(--text);
+  border: 1px solid var(--border);
+}
+.btn-ghost {
+  background: transparent; color: var(--text2);
+  border: 1px solid var(--border);
+}
+.btn-danger { background: var(--danger); color: #fff; }
+
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+.grid-2 .btn { padding: 22px 16px; font-size: 16px; }
+
+/* 卡片 */
+.card {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+}
+.card-label { font-size: 13px; color: var(--text2); margin-bottom: 4px; }
+.card-value { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* 表格 */
+table { width: 100%; border-collapse: collapse; }
+th, td {
+  padding: 12px 8px; text-align: right;
+  font-variant-numeric: tabular-nums;
+  border-bottom: 1px solid var(--border);
+}
+th { font-size: 12px; color: var(--text2); font-weight: 500; }
+th:first-child, td:first-child { text-align: left; }
+tr:last-child td { border-bottom: none; font-weight: 700; font-size: 17px; }
+tr.total-row td { border-top: 2px solid var(--border); }
+
+/* 表单 */
+.form-group { margin-bottom: 20px; }
+.form-group label {
+  display: block; font-size: 13px; color: var(--text2); margin-bottom: 8px;
+}
+.form-group input, .form-group select {
+  width: 100%; background: var(--card); color: var(--text);
+  border: 1px solid var(--border); border-radius: 12px;
+  padding: 14px; font-size: 17px; font-family: inherit;
+}
+.form-group input:focus { outline: none; border-color: var(--accent); }
+
+/* 时间选择 */
+.time-display {
+  text-align: center; padding: 24px;
+  background: var(--card); border-radius: var(--radius);
+  margin-bottom: 16px;
+}
+.time-display .time-label { font-size: 13px; color: var(--text2); margin-bottom: 8px; }
+.time-display .time-value {
+  font-size: 40px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+.time-display .time-note { font-size: 13px; color: var(--text2); margin-top: 8px; }
+
+/* 历史月份列表 */
+.month-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 16px; background: var(--card); border-radius: 12px;
+  margin-bottom: 8px; cursor: pointer; border: 1px solid var(--border);
+}
+.month-item:active { background: var(--card2); }
+.month-item .name { font-size: 16px; font-weight: 500; }
+.month-item .amount { color: var(--accent); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* 记录列表 */
+.record-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 14px 0; border-bottom: 1px solid var(--border);
+}
+.record-item:last-child { border-bottom: none; }
+.record-item .info .name { font-size: 15px; font-weight: 500; }
+.record-item .info .meta { font-size: 12px; color: var(--text2); margin-top: 2px; }
+.record-item .amount { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* toast */
+.toast {
+  position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%);
+  background: var(--accent); color: #0E0E10;
+  padding: 12px 24px; border-radius: 24px;
+  font-weight: 600; font-size: 15px;
+  opacity: 0; transition: opacity 0.2s;
+  pointer-events: none; z-index: 999;
+}
+.toast.show { opacity: 1; }
+
+/* loading */
+.loading {
+  text-align: center; padding: 60px 20px;
+}
+.loading .spinner {
+  width: 36px; height: 36px;
+  border: 3px solid var(--border); border-top-color: var(--accent);
+  border-radius: 50%; margin: 0 auto 16px;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading p { color: var(--text2); font-size: 15px; }
+
+/* 设置项 */
+.setting-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 14px 0; border-bottom: 1px solid var(--border);
+}
+.setting-row:last-child { border-bottom: none; }
+.setting-row .label { font-size: 15px; }
+.setting-row .value { color: var(--text2); font-size: 14px; }
+
+/* 标签 */
+.badge {
+  display: inline-block; padding: 2px 8px; border-radius: 6px;
+  font-size: 11px; font-weight: 600;
+  background: var(--accent-dim); color: var(--accent);
+}
+.badge.warn { background: rgba(245,158,11,0.15); color: var(--warn); }
+.badge.plain { background: var(--card2); color: var(--text2); }
+</style>
+</head>
+<body>
+
+<!-- ===== 主界面 ===== -->
+<div class="view active" id="view-home">
+  <div class="navbar">
+    <span></span>
+    <span class="title" id="home-month-label">本月</span>
+    <button class="back" onclick="go('settings')">设置</button>
+  </div>
+  <div class="month-label" id="home-month-str"></div>
+  <div class="big-amount">
+    <span class="currency">HK$</span><span class="amount" id="home-total">0.00</span>
+  </div>
+  <div class="sub-row" id="home-breakdown"></div>
+
+  <button class="btn btn-primary" onclick="startOffwork()">下班打卡</button>
+  <div class="grid-2">
+    <button class="btn btn-secondary" onclick="go('monthly')">本月统计</button>
+    <button class="btn btn-secondary" onclick="go('history')">历史记录</button>
+    <button class="btn btn-secondary" onclick="go('other')">其他收入</button>
+  </div>
+</div>
+
+<!-- ===== 下班：位置识别中 ===== -->
+<div class="view" id="view-locating">
+  <div class="navbar">
+    <button class="back" onclick="go('home')">取消</button>
+    <span class="title">识别位置</span>
+    <span class="spacer"></span>
+  </div>
+  <div class="loading">
+    <div class="spinner"></div>
+    <p>正在识别你的位置...</p>
+    <p style="margin-top:12px; font-size:13px;" id="locating-hint">如果无法识别，请手动选择</p>
+  </div>
+  <div style="margin-top:20px;">
+    <button class="btn btn-ghost" onclick="manualPickWork()">手动选择工作地点</button>
+  </div>
+</div>
+
+<!-- ===== 下班：手动选择 A/B ===== -->
+<div class="view" id="view-pickwork">
+  <div class="navbar">
+    <button class="back" onclick="go('home')">取消</button>
+    <span class="title">选择工作</span>
+    <span class="spacer"></span>
+  </div>
+  <div style="padding: 20px 0;">
+    <button class="btn btn-secondary" style="margin-bottom:12px;" onclick="pickWork('A')">
+      A 工作 <span style="display:block;font-size:13px;color:var(--text2);font-weight:400;margin-top:4px;">时薪 HK$75</span>
+    </button>
+    <button class="btn btn-secondary" onclick="pickWork('B')">
+      B 工作 <span style="display:block;font-size:13px;color:var(--text2);font-weight:400;margin-top:4px;">固定 HK$750</span>
+    </button>
+  </div>
+</div>
+
+<!-- ===== 下班：A 工作算钱 ===== -->
+<div class="view" id="view-calcA">
+  <div class="navbar">
+    <button class="back" onclick="go('home')">取消</button>
+    <span class="title">A 工作打卡</span>
+    <span class="spacer"></span>
+  </div>
+  <div class="form-group">
+    <label>上班时间</label>
+    <input type="time" id="start-time" value="10:00">
+  </div>
+  <div class="time-display">
+    <div class="time-label">系统识别下班时间（半小时取整）</div>
+    <div class="time-value" id="off-time-display">--:--</div>
+    <div class="time-note" id="meal-note"></div>
+  </div>
+  <div class="card">
+    <div class="card-label">本次工作时长</div>
+    <div class="card-value" id="calc-hours">0 小时</div>
+  </div>
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-label">本次收入（未扣MPF）</div>
+    <div class="card-value" style="color:var(--accent);" id="calc-amount">HK$ 0</div>
+  </div>
+  <button class="btn btn-primary" onclick="confirmA()">确认记录</button>
+</div>
+
+<!-- ===== 下班：B 工作确认 ===== -->
+<div class="view" id="view-confirmB">
+  <div class="navbar">
+    <button class="back" onclick="go('home')">取消</button>
+    <span class="title">B 工作打卡</span>
+    <span class="spacer"></span>
+  </div>
+  <div class="card" style="text-align:center; padding:40px 20px;">
+    <div class="card-label">B 工作</div>
+    <div class="card-value" style="font-size:36px; color:var(--accent); margin:12px 0;">HK$ 750</div>
+    <div style="font-size:13px;color:var(--text2);">今天 <span id="b-date"></span></div>
+  </div>
+  <button class="btn btn-primary" onclick="confirmB()">确认记录</button>
+</div>
+
+<!-- ===== 本月统计 ===== -->
+<div class="view" id="view-monthly">
+  <div class="navbar">
+    <button class="back" onclick="go('home')">返回</button>
+    <span class="title" id="monthly-title">本月统计</span>
+    <span class="spacer"></span>
+  </div>
+  <table>
+    <thead>
+      <tr><th>工作</th><th>天数</th><th>小时</th><th>金额</th></tr>
+    </thead>
+    <tbody id="monthly-body"></tbody>
+  </table>
+  <div id="monthly-detail" style="margin-top:24px;"></div>
+</div>
+
+<!-- ===== 历史月份列表 ===== -->
+<div class="view" id="view-history">
+  <div class="navbar">
+    <button class="back" onclick="go('home')">返回</button>
+    <span class="title">历史记录</span>
+    <span class="spacer"></span>
+  </div>
+  <div id="history-list"></div>
+</div>
+
+<!-- ===== 历史月详情 ===== -->
+<div class="view" id="view-historyDetail">
+  <div class="navbar">
+    <button class="back" onclick="go('history')">返回</button>
+    <span class="title" id="hd-title">月详情</span>
+    <span class="spacer"></span>
+  </div>
+  <div id="hd-content"></div>
+</div>
+
+<!-- ===== 其他收入 ===== -->
+<div class="view" id="view-other">
+  <div class="navbar">
+    <button class="back" onclick="go('home')">返回</button>
+    <span class="title">其他收入</span>
+    <span class="spacer"></span>
+  </div>
+  <div class="form-group">
+    <label>金额（HKD）</label>
+    <input type="number" id="other-amount" placeholder="输入金额" inputmode="decimal">
+  </div>
+  <div class="form-group">
+    <label>备注（可选）</label>
+    <input type="text" id="other-note" placeholder="什么工作？">
+  </div>
+  <button class="btn btn-primary" onclick="saveOther()">保存记录</button>
+</div>
+
+<!-- ===== 设置 ===== -->
+<div class="view" id="view-settings">
+  <div class="navbar">
+    <button class="back" onclick="go('home')">返回</button>
+    <span class="title">设置</span>
+    <span class="spacer"></span>
+  </div>
+  <div class="card">
+    <div class="setting-row">
+      <span class="label">A 时薪</span>
+      <span class="value" id="set-hourly">HK$ 75</span>
+    </div>
+    <div class="setting-row">
+      <span class="label">B 固定金额</span>
+      <span class="value" id="set-flat">HK$ 750</span>
+    </div>
+    <div class="setting-row">
+      <span class="label">MPF 阈值（月）</span>
+      <span class="value" id="set-threshold">HK$ 8000</span>
+    </div>
+    <div class="setting-row">
+      <span class="label">超过阈值后比例</span>
+      <span class="value" id="set-rate">95%</span>
+    </div>
+  </div>
+  <div class="card">
+    <div style="font-size:14px;font-weight:600;margin-bottom:12px;">位置配置</div>
+    <div class="setting-row">
+      <span class="label">A 工作位置</span>
+      <button class="btn btn-ghost" style="padding:8px 16px;font-size:13px;width:auto;" onclick="setLocation('A')" id="loc-A-status">未设置</button>
+    </div>
+    <div class="setting-row">
+      <span class="label">B 工作位置</span>
+      <button class="btn btn-ghost" style="padding:8px 16px;font-size:13px;width:auto;" onclick="setLocation('B')" id="loc-B-status">未设置</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="setting-row" style="cursor:pointer;" onclick="exportData()">
+      <span class="label">导出数据</span>
+      <span class="value">导出 JSON</span>
+    </div>
+    <div class="setting-row" style="cursor:pointer;" onclick="clearAll()">
+      <span class="label" style="color:var(--danger);">清除所有数据</span>
+      <span class="value">→</span>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ============ 数据层 ============
+const LS_KEY = 'income_tracker_v1';
+const DEFAULT_SETTINGS = {
+  hourlyRateA: 75,
+  flatRateB: 750,
+  mpfThreshold: 8000,
+  mpfRate: 0.95,
+  locations: { A: null, B: null } // {lat, lng, radius: 200}
+};
+
+function loadData() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return { records: [], settings: {...DEFAULT_SETTINGS} };
+    const d = JSON.parse(raw);
+    d.settings = {...DEFAULT_SETTINGS, ...(d.settings||{}), locations: {...DEFAULT_SETTINGS.locations, ...(d.settings?.locations||{})}};
+    return d;
+  } catch(e) { return { records: [], settings: {...DEFAULT_SETTINGS} }; }
+}
+function saveData(d) { localStorage.setItem(LS_KEY, JSON.stringify(d)); }
+let DB = loadData();
+
+// ============ 工具函数 ============
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function monthKey(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+function fmt(n) {
+  return Math.round(n*100)/100;
+}
+function hkd(n) {
+  return 'HK$ ' + fmt(n).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 1800);
+}
+
+// ============ 路由 ============
+function go(view, params) {
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-'+view).classList.add('active');
+  if (view === 'home') renderHome();
+  if (view === 'monthly') renderMonthly();
+  if (view === 'history') renderHistory();
+  window.scrollTo(0,0);
+}
+
+// ============ 主界面 ============
+function getMonthSummary(year, month) {
+  const key = `${year}-${String(month).padStart(2,'0')}`;
+  const result = {};
+  ['A','B','other'].forEach(work => {
+    const recs = DB.records.filter(r => r.date.startsWith(key) && r.work === work);
+    const gross = recs.reduce((s,r)=>s+r.grossAmount, 0);
+    const net = gross > DB.settings.mpfThreshold ? gross * DB.settings.mpfRate : gross;
+    const hours = recs.reduce((s,r)=>s+(r.hours||0), 0);
+    result[work] = { records: recs, gross, net, hours, days: recs.length };
+  });
+  return result;
+}
+
+function renderHome() {
+  const now = new Date();
+  document.getElementById('home-month-str').textContent =
+    `${now.getFullYear()}年${now.getMonth()+1}月`;
+  const s = getMonthSummary(now.getFullYear(), now.getMonth()+1);
+  const total = s.A.net + s.B.net + s.other.net;
+  document.getElementById('home-total').textContent = fmt(total).toLocaleString('en-US', {minimumFractionDigits:2});
+  document.getElementById('home-breakdown').innerHTML =
+    `<span>A <b>${hkd(s.A.net)}</b></span><span>B <b>${hkd(s.B.net)}</b></span><span>其他 <b>${hkd(s.other.net)}</b></span>`;
+}
+
+// ============ 下班流程 ============
+function startOffwork() {
+  go('locating');
+  detectLocation();
+}
+
+function detectLocation() {
+  if (!navigator.geolocation) {
+    manualPickWork();
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const lat = pos.coords.latitude, lng = pos.coords.longitude;
+      const locA = DB.settings.locations.A;
+      const locB = DB.settings.locations.B;
+      let matched = null;
+      if (locA && distance(lat,lng,locA.lat,locA.lng) < (locA.radius||200)) matched = 'A';
+      else if (locB && distance(lat,lng,locB.lat,locB.lng) < (locB.radius||200)) matched = 'B';
+      if (matched) {
+        pickWork(matched);
+      } else {
+        document.getElementById('locating-hint').textContent = '位置未匹配到工作地点，请手动选择';
+        manualPickWork();
+      }
+    },
+    (err) => {
+      document.getElementById('locating-hint').textContent = '无法获取位置，请手动选择';
+      manualPickWork();
+    },
+    { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+  );
+}
+
+function distance(lat1,lng1,lat2,lng2) {
+  const R = 6371000;
+  const dLat = (lat2-lat1)*Math.PI/180;
+  const dLng = (lng2-lng1)*Math.PI/180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function manualPickWork() { go('pickwork'); }
+
+function pickWork(work) {
+  if (work === 'A') {
+    go('calcA');
+    initCalcA();
+  } else if (work === 'B') {
+    document.getElementById('b-date').textContent = todayStr();
+    go('confirmB');
+  }
+}
+
+// ---- A 工作算钱 ----
+function getOffTimeNow() {
+  const now = new Date();
+  let h = now.getHours(), m = now.getMinutes();
+  m = m < 30 ? 0 : 30;
+  return { h, m, str: `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}` };
+}
+
+function calcAHours(startStr, offStr) {
+  const [sh, sm] = startStr.split(':').map(Number);
+  const [oh, om] = offStr.split(':').map(Number);
+  let startMin = sh*60+sm, offMin = oh*60+om;
+  if (offMin < startMin) offMin += 24*60; // 跨天
+  let totalMin = offMin - startMin;
+  let hasMeal = false;
+  if (startMin >= 10*60 && startMin <= 16*60) {
+    totalMin -= 120; // 扣2小时饭钟
+    hasMeal = true;
+  }
+  return { hours: Math.max(0, totalMin/60), hasMeal };
+}
+
+function initCalcA() {
+  const off = getOffTimeNow();
+  document.getElementById('off-time-display').textContent = off.str;
+  const startInput = document.getElementById('start-time');
+  startInput.value = '10:00';
+  startInput.oninput = updateCalcA;
+  updateCalcA();
+}
+
+function updateCalcA() {
+  const start = document.getElementById('start-time').value;
+  const off = getOffTimeNow().str;
+  const { hours, hasMeal } = calcAHours(start, off);
+  document.getElementById('calc-hours').textContent = fmt(hours) + ' 小时';
+  document.getElementById('meal-note').textContent = hasMeal
+    ? '上班时间在 10:00–16:00 之间，已自动扣 2 小时饭钟'
+    : '未触发饭钟扣除';
+  document.getElementById('calc-amount').textContent = hkd(hours * DB.settings.hourlyRateA);
+}
+
+function confirmA() {
+  const start = document.getElementById('start-time').value;
+  const off = getOffTimeNow().str;
+  const { hours, hasMeal } = calcAHours(start, off);
+  const gross = hours * DB.settings.hourlyRateA;
+  DB.records.push({
+    id: Date.now().toString(36),
+    date: todayStr(),
+    work: 'A',
+    startTime: start,
+    offTime: off,
+    hours: hours,
+    grossAmount: gross,
+    note: hasMeal ? '扣饭钟2h' : ''
+  });
+  saveData(DB);
+  showToast('已记录 A 工作 ' + hkd(gross));
+  go('home');
+}
+
+function confirmB() {
+  DB.records.push({
+    id: Date.now().toString(36),
+    date: todayStr(),
+    work: 'B',
+    grossAmount: DB.settings.flatRateB
+  });
+  saveData(DB);
+  showToast('已记录 B 工作 ' + hkd(DB.settings.flatRateB));
+  go('home');
+}
+
+// ============ 本月统计 ============
+function renderMonthly() {
+  const now = new Date();
+  document.getElementById('monthly-title').textContent = `${now.getMonth()+1}月统计`;
+  const s = getMonthSummary(now.getFullYear(), now.getMonth()+1);
+  const totalGross = s.A.gross + s.B.gross + s.other.gross;
+  const totalNet = s.A.net + s.B.net + s.other.net;
+  const rows = [
+    ['A', s.A],
+    ['B', s.B],
+    ['其他', s.other]
+  ];
+  let html = '';
+  rows.forEach(([name, d]) => {
+    const hours = name === 'A' ? fmt(d.hours) + ' h' : '—';
+    const mpfNote = d.gross > DB.settings.mpfThreshold
+      ? ` <span class="badge warn">MPF 5%</span>` : '';
+    html += `<tr><td>${name}${mpfNote}</td><td>${d.days}</td><td>${hours}</td><td>${hkd(d.net)}</td></tr>`;
+  });
+  html += `<tr class="total-row"><td>总计</td><td>${s.A.days+s.B.days+s.other.days}</td><td>${fmt(s.A.hours)} h</td><td>${hkd(totalNet)}</td></tr>`;
+  document.getElementById('monthly-body').innerHTML = html;
+
+  // 明细
+  const key = monthKey(now);
+  const recs = DB.records.filter(r => r.date.startsWith(key)).sort((a,b)=>b.createdAt-a.createdAt);
+  let detailHtml = '<div style="font-size:14px;font-weight:600;margin-bottom:8px;">今日/本月明细</div>';
+  if (recs.length === 0) detailHtml += '<div style="color:var(--text2);font-size:14px;">暂无记录</div>';
+  recs.forEach(r => {
+    const label = r.work === 'A' ? 'A 工作' : r.work === 'B' ? 'B 工作' : '其他';
+    const meta = r.work === 'A' ? `${r.startTime}–${r.offTime} · ${fmt(r.hours)}h` : (r.note||'');
+    detailHtml += `<div class="record-item">
+      <div class="info"><div class="name">${label}</div><div class="meta">${r.date} ${meta}</div></div>
+      <div class="amount">${hkd(r.grossAmount)}</div>
+    </div>`;
+  });
+  document.getElementById('monthly-detail').innerHTML = detailHtml;
+}
+
+// ============ 历史记录 ============
+function renderHistory() {
+  const now = new Date();
+  const list = [];
+  // 列出最近12个月（不含当月）
+  for (let i = 1; i <= 12; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+    const s = getMonthSummary(d.getFullYear(), d.getMonth()+1);
+    const total = s.A.net + s.B.net + s.other.net;
+    list.push({ year: d.getFullYear(), month: d.getMonth()+1, total, recs: s.A.records.length+s.B.records.length+s.other.records.length });
+  }
+  // 只显示有记录的月份
+  const hasData = list.filter(m => m.recs > 0);
+  if (hasData.length === 0) {
+    document.getElementById('history-list').innerHTML = '<div style="color:var(--text2);text-align:center;padding:40px;">暂无历史记录</div>';
+    return;
+  }
+  document.getElementById('history-list').innerHTML = hasData.map(m => `
+    <div class="month-item" onclick="showHistoryDetail(${m.year},${m.month})">
+      <span class="name">${m.year}年 ${m.month}月</span>
+      <span class="amount">${hkd(m.total)}</span>
+    </div>
+  `).join('');
+}
+
+function showHistoryDetail(year, month) {
+  document.getElementById('hd-title').textContent = `${year}年${month}月`;
+  const s = getMonthSummary(year, month);
+  const total = s.A.net + s.B.net + s.other.net;
+  const key = `${year}-${String(month).padStart(2,'0')}`;
+  const recs = DB.records.filter(r => r.date.startsWith(key)).sort((a,b)=>b.createdAt-a.createdAt);
+  let html = `
+    <div class="card" style="text-align:center;margin-bottom:16px;">
+      <div class="card-label">月总收入</div>
+      <div class="card-value" style="color:var(--accent);font-size:32px;">${hkd(total)}</div>
+    </div>
+    <table style="margin-bottom:16px;">
+      <thead><tr><th>工作</th><th>天数</th><th>金额</th></tr></thead>
+      <tbody>
+        <tr><td>A</td><td>${s.A.days}</td><td>${hkd(s.A.net)}</td></tr>
+        <tr><td>B</td><td>${s.B.days}</td><td>${hkd(s.B.net)}</td></tr>
+        <tr><td>其他</td><td>${s.other.days}</td><td>${hkd(s.other.net)}</td></tr>
+      </tbody>
+    </table>
+    <div style="font-size:14px;font-weight:600;margin-bottom:8px;">明细</div>
+  `;
+  if (recs.length === 0) html += '<div style="color:var(--text2);">无记录</div>';
+  recs.forEach(r => {
+    const label = r.work === 'A' ? 'A' : r.work === 'B' ? 'B' : '其他';
+    const meta = r.work === 'A' ? `${r.startTime}–${r.offTime} · ${fmt(r.hours)}h` : (r.note||'');
+    html += `<div class="record-item">
+      <div class="info"><div class="name">${label} <span style="color:var(--text2);font-size:12px;">${r.date}</span></div><div class="meta">${meta}</div></div>
+      <div class="amount">${hkd(r.grossAmount)}</div>
+    </div>`;
+  });
+  document.getElementById('hd-content').innerHTML = html;
+  go('historyDetail');
+}
+
+// ============ 其他收入 ============
+function saveOther() {
+  const amt = parseFloat(document.getElementById('other-amount').value);
+  if (!amt || amt <= 0) { showToast('请输入有效金额'); return; }
+  const note = document.getElementById('other-note').value;
+  DB.records.push({
+    id: Date.now().toString(36),
+    date: todayStr(),
+    work: 'other',
+    grossAmount: amt,
+    note: note
+  });
+  saveData(DB);
+  showToast('已记录其他收入 ' + hkd(amt));
+  document.getElementById('other-amount').value = '';
+  document.getElementById('other-note').value = '';
+  go('home');
+}
+
+// ============ 设置 ============
+function renderSettings() {
+  document.getElementById('set-hourly').textContent = 'HK$ ' + DB.settings.hourlyRateA;
+  document.getElementById('set-flat').textContent = 'HK$ ' + DB.settings.flatRateB;
+  document.getElementById('set-threshold').textContent = 'HK$ ' + DB.settings.mpfThreshold;
+  document.getElementById('set-rate').textContent = (DB.settings.mpfRate*100) + '%';
+  document.getElementById('loc-A-status').textContent = DB.settings.locations.A ? '已设置' : '未设置';
+  document.getElementById('loc-B-status').textContent = DB.settings.locations.B ? '已设置' : '未设置';
+}
+
+function setLocation(work) {
+  if (!navigator.geolocation) { showToast('不支持定位'); return; }
+  navigator.geolocation.getCurrentPosition((pos) => {
+    DB.settings.locations[work] = { lat: pos.coords.latitude, lng: pos.coords.longitude, radius: 200 };
+    saveData(DB);
+    showToast(work + ' 位置已保存');
+    renderSettings();
+  }, (err) => { showToast('定位失败，请重试'); }, { enableHighAccuracy: true, timeout: 8000 });
+}
+
+function exportData() {
+  const blob = new Blob([JSON.stringify(DB, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'income-data.json'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function clearAll() {
+  if (!confirm('确定要清除所有记录和设置吗？此操作不可恢复。')) return;
+  localStorage.removeItem(LS_KEY);
+  DB = { records: [], settings: {...DEFAULT_SETTINGS, locations: {A:null,B:null}} };
+  showToast('已清除所有数据');
+  go('home');
+}
+
+// ============ PWA manifest (动态注入) ============
+(function() {
+  const manifest = {
+    name: '收入记账', short_name: '收入',
+    start_url: '.', display: 'standalone',
+    background_color: '#0E0E10', theme_color: '#0E0E10',
+    icons: []
+  };
+  const blob = new Blob([JSON.stringify(manifest)], {type:'application/json'});
+  const link = document.createElement('link');
+  link.rel = 'manifest'; link.href = URL.createObjectURL(blob);
+  document.head.appendChild(link);
+})();
+
+// ============ 启动 ============
+renderSettings();
+renderHome();
+</script>
+</body>
+</html>
